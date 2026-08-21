@@ -2,6 +2,11 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "pnpm build:vercel",
   "outputDirectory": "public",
+  "functions": {
+    "api/trpc/[trpc].cjs": {
+      "includeFiles": "dist/vercel-trpc.cjs"
+    }
+  },
   "rewrites": [
     {
       "source": "/:path((?!api/).*)",
