@@ -6,6 +6,7 @@ export const ENV = {
   ownerOpenId: process.env.OWNER_OPEN_ID ?? "",
   ownerUsername: process.env.OWNER_USERNAME?.trim() ?? "",
   ownerPassword: process.env.OWNER_PASSWORD ?? "",
+  youtubeDataApiKey: process.env.YOUTUBE_DATA_API_KEY ?? "",
   isProduction: process.env.NODE_ENV === "production",
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
