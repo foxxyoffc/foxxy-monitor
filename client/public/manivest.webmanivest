@@ -1,0 +1,12 @@
+{
+  "name": "Foxxy Monitor",
+  "short_name": "Foxxy",
+  "description": "Dashboard operasional Foxxy Monitor.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#08070d",
+  "theme_color": "#8b4df2",
+  "icons": [
+    { "src": "/pwa-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
