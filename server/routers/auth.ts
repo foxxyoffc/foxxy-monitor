@@ -5,6 +5,7 @@ import { blockedDevices, sessions, users } from "../../drizzle/schema";
 import { COOKIE_NAME } from "../../shared/const";
 import { getDb, getSettings, logActivity } from "../db";
 import { getSessionCookieOptions } from "../_core/cookies";
+import { ENV } from "../_core/env";
 import { createSessionToken, getRequestIp, hashPassword, hashValue, verifyPassword } from "../security";
 import { publicProcedure, router } from "../_core/trpc";
 import { requireOwner, requireSession, sessionInput } from "./guards";
@@ -14,6 +15,22 @@ const credentials = z.object({
   password: z.string().min(8).max(128),
   deviceId: z.string().min(20).max(160),
 });
+
+const ENVIRONMENT_OWNER_OPEN_ID = "owner:vercel";
+
+function hasEnvironmentOwnerCredentials() {
+  return Boolean(ENV.ownerUsername && ENV.ownerPassword);
+}
+
+async function ensureEnvironmentOwner(db: NonNullable<Awaited<ReturnType<typeof getDb>>>) {
+  const current = (await db.select().from(users).where(eq(users.openId, ENVIRONMENT_OWNER_OPEN_ID)).limit(1))[0];
+  if (current) {
+    await db.update(users).set({ role: "owner", status: "active", name: "Owner" }).where(eq(users.id, current.id));
+    return (await db.select().from(users).where(eq(users.id, current.id)).limit(1))[0]!;
+  }
+  const inserted = await db.insert(users).values({ openId: ENVIRONMENT_OWNER_OPEN_ID, name: "Owner", role: "owner", loginMethod: "environment" });
+  return (await db.select().from(users).where(eq(users.id, Number(inserted[0].insertId))).limit(1))[0]!;
+}
 
 async function startSession(userId: number, deviceId: string, ip: string) {
   const db = await getDb();
@@ -40,7 +57,9 @@ async function assertNotBlocked(userId: number, deviceId: string, ip: string) {
 
 export const authRouter = router({
   me: publicProcedure.query(({ ctx }) => ctx.user),
+  ownerCredentialMode: publicProcedure.query(() => ({ environmentManaged: hasEnvironmentOwnerCredentials() })),
   hasOwner: publicProcedure.query(async () => {
+    if (hasEnvironmentOwnerCredentials()) return { hasOwner: true };
     const db = await getDb();
     if (!db) return { hasOwner: false };
     const owner = await db.select({ id: users.id }).from(users).where(and(eq(users.role, "owner"), isNotNull(users.username))).limit(1);
@@ -48,6 +67,7 @@ export const authRouter = router({
   }),
   settings: publicProcedure.query(async () => getSettings()),
   bootstrapOwner: publicProcedure.input(credentials.extend({ name: z.string().min(2).max(120), email: z.string().email().optional() })).mutation(async ({ input, ctx }) => {
+    if (hasEnvironmentOwnerCredentials()) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Kredensial Owner dikelola melalui Environment Variable Vercel." });
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database belum tersedia." });
     const owner = await db.select({ id: users.id }).from(users).where(and(eq(users.role, "owner"), isNotNull(users.username))).limit(1);
@@ -74,6 +94,7 @@ export const authRouter = router({
       ctx.addIssue({ code: "custom", path: ["confirmNewPassword"], message: "Konfirmasi password baru tidak sama." });
     }
   })).mutation(async ({ input }) => {
+    if (hasEnvironmentOwnerCredentials()) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Ubah kredensial Owner melalui Environment Variable Vercel." });
     const owner = await requireOwner(input.sessionToken);
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database belum tersedia." });
@@ -107,6 +128,13 @@ export const authRouter = router({
   login: publicProcedure.input(credentials).mutation(async ({ input, ctx }) => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database belum tersedia." });
+    if (hasEnvironmentOwnerCredentials() && input.username === ENV.ownerUsername) {
+      if (input.password !== ENV.ownerPassword) throw new TRPCError({ code: "UNAUTHORIZED", message: "Username atau password tidak valid." });
+      const owner = await ensureEnvironmentOwner(db);
+      const token = await startSession(owner.id, input.deviceId, getRequestIp(ctx.req.headers));
+      await logActivity(owner.id, "OWNER_LOGIN_ENVIRONMENT", "Owner masuk menggunakan kredensial Environment Variable.");
+      return { sessionToken: token, user: { id: owner.id, name: owner.name ?? "Owner", role: "owner" as const, adminNumber: null } };
+    }
     const user = (await db.select().from(users).where(eq(users.username, input.username)).limit(1))[0];
     if (!user || !user.passwordHash || !(await verifyPassword(input.password, user.passwordHash))) {
       throw new TRPCError({ code: "UNAUTHORIZED", message: "Username atau password tidak valid." });
