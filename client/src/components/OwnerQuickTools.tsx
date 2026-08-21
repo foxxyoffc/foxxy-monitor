@@ -1,0 +1,20 @@
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { trpc } from "@/lib/trpc";
+import { Coffee, Eraser, Settings2, Trash2 } from "lucide-react";
+import { FormEvent, useEffect, useState } from "react";
+import { toast } from "sonner";
+
+export function OwnerQuickTools({ sessionToken, ownerSociabuzzUrl }: { sessionToken: string; ownerSociabuzzUrl?: string | null }) {
+  const [open, setOpen] = useState(false); const [coffeeLink, setCoffeeLink] = useState(ownerSociabuzzUrl ?? ""); const [selectedPlan, setSelectedPlan] = useState(""); const utils = trpc.useUtils();
+  const savings = trpc.dashboard.listSavings.useQuery({ sessionToken }, { enabled: open });
+  useEffect(() => setCoffeeLink(ownerSociabuzzUrl ?? ""), [ownerSociabuzzUrl]);
+  const refresh = () => { utils.dashboard.listSavings.invalidate({ sessionToken }); utils.auth.settings.invalidate(); };
+  const link = trpc.dashboard.updateOwnerLinks.useMutation({ onSuccess: refresh, onError: (error) => toast.error(error.message) });
+  const deleteHistory = trpc.dashboard.deleteSavingsHistory.useMutation({ onSuccess: () => { refresh(); toast.success("Riwayat tabungan dihapus."); }, onError: (error) => toast.error(error.message) });
+  const deletePlan = trpc.dashboard.deleteSavingsPlan.useMutation({ onSuccess: () => { refresh(); setSelectedPlan(""); toast.success("Target tabungan dan riwayatnya dihapus."); }, onError: (error) => toast.error(error.message) });
+  const submitLink = (event: FormEvent) => { event.preventDefault(); link.mutate({ sessionToken, ownerSociabuzzUrl: coffeeLink.trim() || null }); };
+  return <Dialog open={open} onOpenChange={setOpen}><DialogTrigger asChild><Button size="icon" variant="ghost" className="text-violet-200 hover:bg-violet-500/10 hover:text-white" aria-label="Kontrol Owner"><Settings2 className="h-5 w-5" /></Button></DialogTrigger><DialogContent className="dialog-dark sm:max-w-lg"><DialogHeader><DialogTitle>Kontrol Cepat Owner</DialogTitle></DialogHeader><form onSubmit={submitLink} className="space-y-2 rounded-xl border border-white/5 bg-white/[0.025] p-4"><Label className="text-xs text-slate-300">Link Kopi untuk Owner</Label><div className="flex gap-2"><Input type="url" value={coffeeLink} onChange={(event) => setCoffeeLink(event.target.value)} placeholder="https://sociabuzz.com/..." /><Button type="submit" size="sm" className="primary-action" disabled={link.isPending}><Coffee />Simpan</Button></div><p className="text-xs text-slate-500">Kosongkan kolom untuk menghapus tautan dari sidebar.</p></form><div className="space-y-3 rounded-xl border border-rose-400/15 bg-rose-500/[0.035] p-4"><div><p className="text-sm font-black text-white">Hapus Riwayat Tabungan</p><p className="mt-1 text-xs text-slate-400">Pilih target untuk menghapus mutasinya, atau hapus seluruh riwayat mutasi.</p></div><select className="foxxy-select w-full" value={selectedPlan} onChange={(event) => setSelectedPlan(event.target.value)}><option value="">Pilih target (opsional)</option>{(savings.data?.plans ?? []).map((plan) => <option key={plan.id} value={plan.id}>{plan.name}</option>)}</select><div className="flex flex-wrap gap-2"><Button variant="outline" className="danger-outline" disabled={deleteHistory.isPending} onClick={() => { if (confirm(selectedPlan ? "Hapus riwayat target terpilih?" : "Hapus seluruh riwayat pemasukan dan pengeluaran tabungan?")) deleteHistory.mutate({ sessionToken, planId: selectedPlan ? Number(selectedPlan) : undefined }); }}><Eraser />Hapus Riwayat</Button><Button variant="outline" className="danger-outline" disabled={!selectedPlan || deletePlan.isPending} onClick={() => { if (confirm("Hapus target tabungan dan seluruh riwayatnya?")) deletePlan.mutate({ sessionToken, planId: Number(selectedPlan) }); }}><Trash2 />Hapus Target</Button></div></div></DialogContent></Dialog>;
+}
