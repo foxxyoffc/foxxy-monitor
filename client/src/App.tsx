@@ -19,8 +19,12 @@ const SettingsPage = lazy(() => import("@/pages/SettingsPage").then((module) => 
 
 type FoxxyUser = { id: number; name: string; email?: string | null; role: "user" | "owner" | "admin"; adminNumber?: number | null };
 
+function FoxxyLoader({ fullScreen = false }: { fullScreen?: boolean }) {
+  return <div className={fullScreen ? "foxxy-loader foxxy-loader-full" : "foxxy-loader"} role="status" aria-label="Memuat Foxxy Monitor"><div className="foxxy-loader-mark"><span>ϟ</span></div><div className="foxxy-loader-bars"><i /><i /><i /></div><span className="sr-only">Memuat</span></div>;
+}
+
 function PageLoading() {
-  return <div className="grid min-h-[45vh] place-items-center text-sm font-bold text-violet-200">Memuat halaman...</div>;
+  return <div className="grid min-h-[45vh] place-items-center"><FoxxyLoader /></div>;
 }
 
 function PrivateRouter({ sessionToken, user, settings, logout }: { sessionToken: string; user: FoxxyUser; settings: unknown; logout: () => void }) {
@@ -47,7 +51,7 @@ function FoxxyApplication() {
   const session = useFoxxySession();
   const settings = trpc.auth.settings.useQuery(undefined, { refetchOnWindowFocus: false });
   if (!session.sessionToken || (!session.isLoading && !session.user)) return <AuthPage onAuthenticated={session.setSession} />;
-  if (!session.user) return <div className="boot-screen">Memverifikasi sesi aman...</div>;
+  if (!session.user) return <FoxxyLoader fullScreen />;
   const user: FoxxyUser = { ...session.user, name: session.user.name ?? "Pengguna" };
   if (settings.error) return <AppShell user={user} settings={null} onLogout={session.logout} sessionToken={session.sessionToken}><QueryNotice error={settings.error} onRetry={() => settings.refetch()} label="Pengaturan Foxxy Monitor belum dapat dimuat." /></AppShell>;
   return <PrivateRouter sessionToken={session.sessionToken} user={user} settings={settings.data} logout={session.logout} />;
@@ -55,4 +59,4 @@ function FoxxyApplication() {
 
 export default function App() {
   return <ErrorBoundary><TooltipProvider><Toaster richColors theme="dark" position="top-right" /><FoxxyApplication /></TooltipProvider></ErrorBoundary>;
-}
+      }
