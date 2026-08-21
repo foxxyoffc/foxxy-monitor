@@ -1,0 +1,46 @@
+{
+  "build_command": "pnpm run build",
+  "capabilities": [
+    "server",
+    "db",
+    "user"
+  ],
+  "dev_command": "pnpm run dev",
+  "env_vars": {
+    "DATABASE_URL": "mysql://2GzsGte2VZexvC5.root:B0f67lYca31dVDcUEMQ6@gateway03.us-east-1.prod.aws.tidbcloud.com:4000/WCteLJ7bturAChxoeDXnSp?ssl={\"rejectUnauthorized\":true}",
+    "DRIZZLE_DATABASE_URL": "mysql://2GzsGte2VZexvC5.root:B0f67lYca31dVDcUEMQ6@gateway03.us-east-1.prod.aws.tidbcloud.com:4000/WCteLJ7bturAChxoeDXnSp?ssl={\"rejectUnauthorized\":true}",
+    "MANUS_WEBDEV_PROJECT_ID": "WCteLJ7bturAChxoeDXnSp"
+  },
+  "experiments": [
+    "no_db_push"
+  ],
+  "git_remote": {
+    "repo_url": "https://7f0548f6b28a1758d9bf7be630d36cb4.artifacts.cloudflare.net/git/prod/WCteLJ7bturAChxoeDXnSp.git",
+    "expiration": "2026-08-22T04:03:22.058Z",
+    "token": "art_v2_x_871c055aa3b0df8eccff6309a83b0bd992a4a790?expires=1787371402",
+    "backend": "GIT_BACKEND_ARTIFACTS"
+  },
+  "name": "foxxy-monitor",
+  "path": "/home/ubuntu/foxxy-monitor",
+  "port": 3000,
+  "secrets": {
+    "BUILT_IN_FORGE_API_KEY": "TgGs77a4wyATwjUn7e9gzm",
+    "BUILT_IN_FORGE_API_URL": "https://forge.manus.ai",
+    "GOOGLE_CLIENT_ID": "345037300458-qru1i8ueuvvso0i0s0uco4582ad0cd8p.apps.googleusercontent.com",
+    "JWT_SECRET": "fynuMzGx2wRdWhnkaeLsMM",
+    "OAUTH_SERVER_URL": "https://api.manus.im",
+    "OWNER_NAME": "m zaki Farel",
+    "OWNER_OPEN_ID": "6wwi6Zwz8bZzyQJNdZVaRW",
+    "VITE_ANALYTICS_ENDPOINT": "https://manus-analytics.com",
+    "VITE_ANALYTICS_WEBSITE_ID": "0854f1a6-b4af-4ad1-b4ff-e92a26071386",
+    "VITE_APP_ID": "WCteLJ7bturAChxoeDXnSp",
+    "VITE_APP_LOGO": "https://files.manuscdn.com/user_upload_by_module/web_dev_logo/310519663905412613/uodjmIcbqMZlwbxD.png",
+    "VITE_APP_TITLE": "Foxxy Monitor",
+    "VITE_FRONTEND_FORGE_API_KEY": "GUWSX3nzvJ8ZrDiJkeerrq",
+    "VITE_FRONTEND_FORGE_API_URL": "https://forge.manus.ai",
+    "VITE_GOOGLE_CLIENT_ID": "345037300458-qru1i8ueuvvso0i0s0uco4582ad0cd8p.apps.googleusercontent.com",
+    "VITE_OAUTH_PORTAL_URL": "https://manus.im"
+  },
+  "template_id": "web-db-user",
+  "test_command": "pnpm test"
+}
