@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, max } from "drizzle-orm";
+import { and, eq, isNotNull, ne } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { blockedDevices, sessions, users } from "../../drizzle/schema";
@@ -7,7 +7,7 @@ import { getDb, getSettings, logActivity } from "../db";
 import { getSessionCookieOptions } from "../_core/cookies";
 import { createSessionToken, getRequestIp, hashPassword, hashValue, verifyPassword } from "../security";
 import { publicProcedure, router } from "../_core/trpc";
-import { requireSession, sessionInput } from "./guards";
+import { requireOwner, requireSession, sessionInput } from "./guards";
 
 const credentials = z.object({
   username: z.string().min(3).max(64).regex(/^[a-zA-Z0-9_.-]+$/, "Username hanya boleh huruf, angka, titik, garis bawah, atau strip."),
@@ -60,6 +60,49 @@ export const authRouter = router({
     const token = await startSession(ownerId, input.deviceId, getRequestIp(ctx.req.headers));
     await logActivity(ownerId, "OWNER_CREATED", "Owner pertama berhasil menyiapkan Foxxy Monitor.");
     return { sessionToken: token, user: { id: ownerId, name: input.name, role: "owner" as const } };
+  }),
+  updateOwnerCredentials: publicProcedure.input(sessionInput.extend({
+    currentPassword: z.string().min(8).max(128),
+    newUsername: z.string().trim().min(3).max(64).regex(/^[a-zA-Z0-9_.-]+$/, "Username hanya boleh huruf, angka, titik, garis bawah, atau strip.").optional(),
+    newPassword: z.string().min(8).max(128).optional(),
+    confirmNewPassword: z.string().min(8).max(128).optional(),
+  }).superRefine((input, ctx) => {
+    if (!input.newUsername && !input.newPassword) {
+      ctx.addIssue({ code: "custom", message: "Isi username baru atau password baru." });
+    }
+    if (input.newPassword !== input.confirmNewPassword) {
+      ctx.addIssue({ code: "custom", path: ["confirmNewPassword"], message: "Konfirmasi password baru tidak sama." });
+    }
+  })).mutation(async ({ input }) => {
+    const owner = await requireOwner(input.sessionToken);
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database belum tersedia." });
+    if (!owner.user.passwordHash || !(await verifyPassword(input.currentPassword, owner.user.passwordHash))) {
+      throw new TRPCError({ code: "UNAUTHORIZED", message: "Password saat ini tidak valid." });
+    }
+
+    const nextUsername = input.newUsername && input.newUsername !== owner.user.username ? input.newUsername : undefined;
+    if (nextUsername) {
+      const existing = (await db.select({ id: users.id }).from(users).where(and(eq(users.username, nextUsername), ne(users.id, owner.user.id))).limit(1))[0];
+      if (existing) throw new TRPCError({ code: "CONFLICT", message: "Username sudah digunakan." });
+    }
+
+    const nextPasswordHash = input.newPassword ? await hashPassword(input.newPassword) : undefined;
+    const updateData: { username?: string; passwordHash?: string; openId?: string; loginMethod?: "password" | "both"; lastSignedIn: Date } = { lastSignedIn: new Date() };
+    if (nextUsername) {
+      updateData.username = nextUsername;
+      if (owner.user.openId === `local:${owner.user.username}`) updateData.openId = `local:${nextUsername}`;
+    }
+    if (nextPasswordHash) {
+      updateData.passwordHash = nextPasswordHash;
+      updateData.loginMethod = owner.user.googleSubject ? "both" : "password";
+    }
+
+    await db.update(users).set(updateData).where(eq(users.id, owner.user.id));
+    await db.update(sessions).set({ isActive: false, revokedAt: new Date() }).where(and(eq(sessions.userId, owner.user.id), ne(sessions.tokenHash, hashValue(input.sessionToken))));
+    const changed = [nextUsername ? "username" : null, nextPasswordHash ? "password" : null].filter(Boolean).join(" dan ");
+    await logActivity(owner.user.id, "OWNER_CREDENTIALS_UPDATED", `Memperbarui ${changed} Owner.`);
+    return { success: true, username: nextUsername ?? owner.user.username };
   }),
   login: publicProcedure.input(credentials).mutation(async ({ input, ctx }) => {
     const db = await getDb();
