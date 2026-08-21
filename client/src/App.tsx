@@ -8,6 +8,7 @@ import { AuthPage } from "@/pages/AuthPage";
 import { Route, Switch } from "wouter";
 import { lazy, Suspense } from "react";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { PwaInstallPrompt } from "./components/PwaInstallPrompt";
 
 const DashboardPage = lazy(() => import("@/pages/DashboardPage").then((module) => ({ default: module.DashboardPage })));
 const AnalyticsPage = lazy(() => import("@/pages/AnalyticsPage").then((module) => ({ default: module.AnalyticsPage })));
@@ -58,5 +59,5 @@ function FoxxyApplication() {
 }
 
 export default function App() {
-  return <ErrorBoundary><TooltipProvider><Toaster richColors theme="dark" position="top-right" /><FoxxyApplication /></TooltipProvider></ErrorBoundary>;
-      }
+  return <ErrorBoundary><TooltipProvider><Toaster richColors theme="dark" position="top-right" /><PwaInstallPrompt /><FoxxyApplication /></TooltipProvider></ErrorBoundary>;
+}
