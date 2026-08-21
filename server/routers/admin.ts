@@ -6,6 +6,7 @@ import { activityLogs, blockedDevices, sessions, users } from "../../drizzle/sch
 import { getDb, logActivity } from "../db";
 import { getRequestIp, hashPassword, maskIpHash } from "../security";
 import { publicProcedure, router } from "../_core/trpc";
+import { ENV } from "../_core/env";
 import { requireOwner, sessionInput } from "./guards";
 
 export const adminRouter = router({
@@ -21,6 +22,7 @@ export const adminRouter = router({
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database belum tersedia." });
     if (input.username) {
+      if (ENV.ownerUsername && input.username === ENV.ownerUsername) throw new TRPCError({ code: "CONFLICT", message: "Username ini dicadangkan untuk Owner." });
       const exists = await db.select({ id: users.id }).from(users).where(eq(users.username, input.username)).limit(1);
       if (exists[0]) throw new TRPCError({ code: "CONFLICT", message: "Username telah digunakan." });
     }
@@ -35,6 +37,18 @@ export const adminRouter = router({
     const targetId = Number(inserted[0].insertId);
     await logActivity(owner.user.id, "ADMIN_CREATED", `Membuat Admin ${adminNumber}.`, targetId);
     return { success: true, adminNumber };
+  }),
+  resetPassword: publicProcedure.input(sessionInput.extend({ adminId: z.number().int().positive(), newPassword: z.string().min(8).max(128) })).mutation(async ({ input }) => {
+    const owner = await requireOwner(input.sessionToken);
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database belum tersedia." });
+    const admin = (await db.select().from(users).where(and(eq(users.id, input.adminId), eq(users.role, "admin"))).limit(1))[0];
+    if (!admin || admin.status === "deleted") throw new TRPCError({ code: "NOT_FOUND", message: "Admin aktif tidak ditemukan." });
+    const passwordHash = await hashPassword(input.newPassword);
+    await db.update(users).set({ passwordHash, loginMethod: admin.email ? "both" : "password" }).where(eq(users.id, admin.id));
+    await db.update(sessions).set({ isActive: false, revokedAt: new Date() }).where(and(eq(sessions.userId, admin.id), eq(sessions.isActive, true)));
+    await logActivity(owner.user.id, "ADMIN_PASSWORD_RESET", `Mereset password Admin ${admin.adminNumber}.`, admin.id);
+    return { success: true };
   }),
   blacklist: publicProcedure.input(sessionInput.extend({ adminId: z.number().int().positive(), reason: z.string().max(255).optional() })).mutation(async ({ input }) => {
     const owner = await requireOwner(input.sessionToken);
