@@ -4,6 +4,7 @@ import { allResetConfirmation, monthlyResetConfirmation } from "../../shared/own
 import { z } from "zod";
 import { announcements, appSettings, dailyMetrics, financialRecords, savingsEntries, savingsPlans } from "../../drizzle/schema";
 import { dashboardSummary, getDb, getSettings, logActivity } from "../db";
+import { ENV } from "../_core/env";
 import { publicProcedure, router } from "../_core/trpc";
 import { requireOwner, requireSession, sessionInput } from "./guards";
 
@@ -98,11 +99,21 @@ export const dashboardRouter = router({
   }),
   searchMusic: publicProcedure.input(sessionInput.extend({ query: z.string().trim().min(2).max(120) })).query(async ({ input }) => {
     await requireSession(input.sessionToken);
-    const params = new URLSearchParams({ term: input.query, country: "ID", media: "music", entity: "song", explicit: "No", limit: "12" });
-    const response = await fetch(`https://itunes.apple.com/search?${params.toString()}`);
-    if (!response.ok) throw new TRPCError({ code: "BAD_GATEWAY", message: "Layanan pencarian musik sedang tidak tersedia." });
-    const payload = await response.json() as { results?: Array<{ trackId?: number; trackName?: string; artistName?: string; collectionName?: string; artworkUrl100?: string; previewUrl?: string }> };
-    return (payload.results ?? []).filter((track) => track.previewUrl && track.trackName).map((track) => ({ id: track.trackId ?? `${track.trackName}-${track.artistName}`, title: track.trackName ?? "Tanpa judul", artist: track.artistName ?? "Artis tidak diketahui", album: track.collectionName ?? "", artworkUrl: track.artworkUrl100 ?? "", previewUrl: track.previewUrl! }));
+    if (!ENV.youtubeDataApiKey) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "YouTube Data API belum dikonfigurasi pada server." });
+    const params = new URLSearchParams({ part: "snippet", type: "video", videoCategoryId: "10", maxResults: "12", q: input.query, key: ENV.youtubeDataApiKey });
+    const response = await fetch(`https://www.googleapis.com/youtube/v3/search?${params.toString()}`);
+    if (!response.ok) throw new TRPCError({ code: "BAD_GATEWAY", message: "YouTube tidak dapat memproses pencarian saat ini." });
+    const payload = await response.json() as {
+      items?: Array<{
+        id?: { videoId?: string };
+        snippet?: {
+          title?: string;
+          channelTitle?: string;
+          thumbnails?: { medium?: { url?: string }; default?: { url?: string } };
+        };
+      }>;
+    };
+    return (payload.items ?? []).filter((item) => item.id?.videoId && item.snippet?.title).map((item) => ({ id: item.id!.videoId!, title: item.snippet!.title!, artist: item.snippet!.channelTitle ?? "YouTube", artworkUrl: item.snippet!.thumbnails?.medium?.url ?? item.snippet!.thumbnails?.default?.url ?? "" }));
   }),
   updateBrand: publicProcedure.input(sessionInput.extend({ siteTitle: z.string().min(3).max(80), logoUrl: z.string().url().nullable() })).mutation(async ({ input }) => {
     const owner = await requireOwner(input.sessionToken);
