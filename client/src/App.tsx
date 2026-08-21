@@ -8,7 +8,6 @@ import { AuthPage } from "@/pages/AuthPage";
 import { Route, Switch } from "wouter";
 import { lazy, Suspense } from "react";
 import ErrorBoundary from "./components/ErrorBoundary";
-import { ThemeProvider } from "./contexts/ThemeContext";
 
 const DashboardPage = lazy(() => import("@/pages/DashboardPage").then((module) => ({ default: module.DashboardPage })));
 const AnalyticsPage = lazy(() => import("@/pages/AnalyticsPage").then((module) => ({ default: module.AnalyticsPage })));
@@ -55,5 +54,5 @@ function FoxxyApplication() {
 }
 
 export default function App() {
-  return <ErrorBoundary><ThemeProvider defaultTheme="dark"><TooltipProvider><Toaster richColors theme="dark" position="top-right" /><FoxxyApplication /></TooltipProvider></ThemeProvider></ErrorBoundary>;
+  return <ErrorBoundary><TooltipProvider><Toaster richColors theme="dark" position="top-right" /><FoxxyApplication /></TooltipProvider></ErrorBoundary>;
 }
